@@ -90,4 +90,121 @@ soalan_master = [
     {
         "soalan": "Institusi Raja Berperlembagaan bermaksud raja bertindak mengikut?",
         "pilihan": ["Kehendak sendiri", "Perlembagaan Persekutuan", "Nasihat rakyat", "Adat istiadat semata-mata"],
-        "jawapan": "Perlembagaan Persekutuan
+        "jawapan": "Perlembagaan Persekutuan"
+    }
+]
+
+# --- 3. SESSION STATE (MEMORI GAME) ---
+if 'game_active' not in st.session_state:
+    st.session_state.game_active = False
+    st.session_state.current_q_index = 0
+    st.session_state.score = 0
+    st.session_state.wrong_count = 0
+    st.session_state.shuffled_questions = []
+    # State baru untuk trigger celebration
+    st.session_state.just_got_correct = False 
+
+# --- 4. FUNGSI START / RESET ---
+def start_game():
+    st.session_state.game_active = True
+    st.session_state.current_q_index = 0
+    st.session_state.score = 0
+    st.session_state.wrong_count = 0
+    st.session_state.just_got_correct = False
+    st.session_state.shuffled_questions = random.sample(soalan_master, len(soalan_master))
+
+# --- 5. LOGIK GAME ---
+
+if not st.session_state.game_active:
+    # Muka Depan
+    st.info("Adakah anda bersedia menguji ilmu Sejarah?")
+    if st.button("🚀 MULA MISI SEKARANG", type="primary"):
+        start_game()
+        st.rerun()
+
+else:
+    # --- VISUAL BOM (NYAWA) ---
+    salah = st.session_state.wrong_count
+    
+    if salah == 0:
+        st.markdown('<div class="status-box safe">STATUS: SELAMAT<br>💣〰️〰️〰️〰️〰️🕯️</div>', unsafe_allow_html=True)
+    elif salah == 1:
+        st.markdown('<div class="status-box warning">STATUS: API DINYALAKAN! (Hati-hati)<br>💣〰️〰️🔥</div>', unsafe_allow_html=True)
+    elif salah == 2:
+        st.markdown('<div class="status-box danger">STATUS: API DAH SAMPAI HUJUNG!!<br>💣🔥</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="status-box boom">💥 KABOOM! MELETUP! 💥</div>', unsafe_allow_html=True)
+
+    # --- CELEBRATION BLOCK (YANG MERIAH TU) ---
+    # Ini akan muncul di atas soalan seterusnya jika jawapan SEBELUM ini betul
+    if st.session_state.just_got_correct:
+        st.balloons() # Lepaskan belon!
+        st.markdown("""
+            <div class="celebration-banner">
+            ✨ TAHNIAH! JAWAPAN TEPAT! ✨<br>
+            Fuh selamat... Teruskan misi!
+            </div>
+        """, unsafe_allow_html=True)
+        # Reset balik trigger supaya tak keluar lagi next round
+        st.session_state.just_got_correct = False
+
+    st.divider()
+
+    # Jika Meletup (Kalah)
+    if st.session_state.wrong_count >= 3:
+        st.error("Misi Gagal! Anda telah salah 3 kali dan bom meletup.")
+        st.write(f"Markah Akhir: {st.session_state.score} / 10")
+        if st.button("🔄 Cuba Lagi (Revive)"):
+            start_game()
+            st.rerun()
+            
+    # Jika Dah Habis Jawab Semua (Menang)
+    elif st.session_state.current_q_index >= len(st.session_state.shuffled_questions):
+        st.balloons() # Belon lagi untuk kemenangan besar
+        st.success("🎉 TAHNIAH! MISI BERJAYA! Anda pakar sejarah sebenar.")
+        st.metric("Markah Penuh", f"{st.session_state.score} / 10")
+        if st.button("Main Semula"):
+            start_game()
+            st.rerun()
+
+    # Jika Sedang Main (Paparkan Soalan)
+    else:
+        # Ambil soalan semasa
+        q_data = st.session_state.shuffled_questions[st.session_state.current_q_index]
+        
+        # Tunjuk Nombor Soalan
+        st.subheader(f"Soalan {st.session_state.current_q_index + 1} / 10")
+        st.write(f"**{q_data['soalan']}**")
+        
+        # Pilihan Jawapan (Button)
+        pilihan = q_data['pilihan']
+        
+        col1, col2 = st.columns(2)
+        
+        for i, option in enumerate(pilihan):
+            # Susun butang kiri kanan
+            with (col1 if i % 2 == 0 else col2):
+                if st.button(option):
+                    # --- SEMAK JAWAPAN ---
+                    if option == q_data['jawapan']:
+                        # Kalau betul: Set trigger untuk celebration nanti
+                        st.session_state.score += 1
+                        st.session_state.just_got_correct = True 
+                    else:
+                        # Kalau salah: Toast kecil je cukup sebagai amaran
+                        st.toast("❌ Salah! Api makin dekat!", icon="🔥")
+                        st.session_state.wrong_count += 1
+                        st.session_state.just_got_correct = False
+                        time.sleep(0.5) # Delay sikit untuk toast salah
+                    
+                    # Pergi soalan seterusnya
+                    st.session_state.current_q_index += 1
+                    st.rerun()
+
+    # Progress Bar (Soalan)
+    if st.session_state.wrong_count < 3 and st.session_state.game_active:
+        st.divider()
+        st.caption(f"Kemajuan: {st.session_state.current_q_index}/10 Soalan")
+        prog = st.session_state.current_q_index / 10
+        # Elak progress bar error kalau dah lebih 10
+        st.progress(min(prog, 1.0))
